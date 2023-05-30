@@ -1,3 +1,7 @@
+WARNING (Projet toujours en cours de developpement, certaines fonctionalitées décrites plus bas ne sont pas encore mise en place)
+Si vous souhaitez participer au projet contacter moi.
+
+
 Projet de sauvegarde des données utilisateur
 
 Ce projet en Python permet de sauvegarder les données utilisateur en fonction de ses choix,
