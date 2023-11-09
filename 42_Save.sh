@@ -52,75 +52,98 @@ POS_VAR=1
 # actions=("toggle_ssh_var" "toggle_ZSHRC_VAR" "toggle_OMZSH_VAR" "toggle_CLEANER_VAR" "start_save")
 
 toggle_right() {
-    case $POS_VAR in
+    local var_names=("SSH_VAR" "ZSHRC_VAR" "OMZSH_VAR" "CLEANER_VAR")
+    local pos_var=$((POS_VAR - 1))
+    local callback="$1"
+
+    if [ $pos_var -eq 4 ]; then
+        start_save
+        return
+    fi
+
+    # Inverser la valeur de la variable correspondante
+    if [ "${!var_names[$pos_var]}" == true ]; then
+        eval "${var_names[$pos_var]}=false"
+    else
+        eval "${var_names[$pos_var]}=true"
+    fi
+
+    "$callback"
+}
+
+
+toggle_choice() {
+    local pos_var=$((POS_VAR - 1))
+    case "$pos_var" in
         1)
-            if [ "$SSH_VAR" == true ]; then
-                SSH_VAR=false
-            else
-                SSH_VAR=true
-            fi
+            select_option
             ;;
         2)
-            if [ "$ZSHRC_VAR" == true ]; then
-                ZSHRC_VAR=false
-            else
-                ZSHRC_VAR=true
-            fi
+            toggle_OMZSH_VAR select_option
             ;;
         3)
-            if [ "$OMZSH_VAR" == true ]; then
-                OMZSH_VAR=false
-            else
-                OMZSH_VAR=true
-            fi
-            ;;
-        4)
-            if [ "$CLEANER_VAR" == true ]; then
-                CLEANER_VAR=false
-            else
-                CLEANER_VAR=true
-            fi
+            exit 0
             ;;
     esac
 }
 
 toggle_up() {
+    local callback="$1"
     if [ $POS_VAR -gt 1 ]; then
         POS_VAR=$((POS_VAR-1))
-        select_option
+        "$callback"
     fi
 }
 
 toggle_down() {
-    if [ $POS_VAR -lt 4 ]; then
+    local callback="$1"
+    local condition="$2"
+    if [ $POS_VAR -lt "$condition" ]; then
         POS_VAR=$((POS_VAR+1))
-        select_option
+        "$callback"
     fi
-}
-
-# Fonctions pour les actions
-toggle_ssh_var() {
-    ssh_var=!ssh_var
-}
-
-toggle_ZSHRC_VAR() {
-    ZSHRC_VAR=!ZSHRC_VAR
-}
-
-toggle_OMZSH_VAR() {
-    OMZSH_VAR=!OMZSH_VAR
-}
-
-toggle_CLEANER_VAR() {
-    CLEANER_VAR=!CLEANER_VAR
+    
 }
 
 
 print_select_option() {
-    # Efface les 4 dernières lignes du terminal
-    tput cuu 4 && tput el
-    options=("Sauvegarde du .ssh   " "Sauvegarde du .zshrc " "Sauvegarde de ohMyZsh" "Sauvegarde de cclean ")
+    # Efface les 5 dernières lignes du terminal
+    tput cuu 5 && tput el
+    options=("Sauvegarde du .ssh   " "Sauvegarde du .zshrc " "Sauvegarde de ohMyZsh" "Sauvegarde de cclean " "Validate")
     vars=("$SSH_VAR" "$ZSHRC_VAR" "$OMZSH_VAR" "$CLEANER_VAR")
+
+    for i in "${!options[@]}"; do
+        option="${options[$i]}"
+        var="${vars[$i]}"
+        color="${WHITE}"
+
+        if [ $POS_VAR -eq $((i+1)) ]; then
+            color="${GREEN}"
+            option="${GREEN}[${RESET} ${RIGHT_ARROW}  ${option}"
+        else
+            option="[    ${option}"
+        fi
+
+        if [ "$var" == true ]; then
+            status="${CHECK_MARK}"
+        else
+            status="${CROSS_MARK}"
+        fi
+        if [ $POS_VAR -eq $((i+1)) ]; then
+            echo -e "${color}[ ${status} ]${RESET} - ${option} ${RESET}   ${GREEN}]${RESET}"
+        else
+            echo -e "${color}[ ${status} ]${RESET} - ${option} ${RESET}   ]"
+        fi
+        # if [ $POS_VAR -eq 5 ]; then
+        #     echo -e "${color}[ ${status} ]${RESET} - ${option} ${RESET}   ${GREEN}]${RESET}"        
+        # fi
+    done
+}
+
+print_select_mode() {
+    # Efface les 3 dernières lignes du terminal
+    tput cuu 3 && tput el
+    options=("Save my home   " "Restore my home" "Exit           ")
 
     for i in "${!options[@]}"; do
         option="${options[$i]}"
@@ -160,23 +183,59 @@ select_option() {
                     case "$key" in
                         "A") # Flèche vers le haut
                             if [ $POS_VAR -gt 1 ]; then
-                                toggle_up
+                                toggle_up select_option
                             fi
                             ;;
                         "B") # Flèche vers le bas
-                            if [ $POS_VAR -lt 4 ]; then
-                                toggle_down
+                            if [ $POS_VAR -lt 5 ]; then
+                                toggle_down select_option 5
                             fi
                             ;;
                         "C") # Flèche vers la droite
-                            toggle_right
-                            select_option
+                            toggle_right select_option
+                            
                             ;;
                     esac
                 fi
                 ;;
             " ") # Barre d'espace
-                toggle_right
+                toggle_space select_option
+                ;;
+            $'\n') # Touche "Entrée"
+                start_save
+                ;;
+        esac
+    done
+}
+
+select_mode() {
+    print_select_mode
+    while true; do
+        read -s -n 1 key
+        case "$key" in
+            $'\x1b') # Touche Échappement (pour les codes de flèches)
+                read -s -n 1 key
+                if [[ "$key" == "[" ]]; then
+                    read -s -n 1 key
+                    case "$key" in
+                        "A") # Flèche vers le haut
+                            if [ $POS_VAR -gt 1 ]; then
+                                toggle_up select_mode
+                            fi
+                            ;;
+                        "B") # Flèche vers le bas
+                            if [ $POS_VAR -lt 3 ]; then
+                                toggle_down select_mode 3
+                            fi
+                            ;;
+                        "C") # Flèche vers la droite
+                            toggle_choice
+                            ;;
+                    esac
+                fi
+                ;;
+            " ") # Barre d'espace
+                toggle_space select_option
                 ;;
             $'\n') # Touche "Entrée"
                 start_save
@@ -187,11 +246,6 @@ select_option() {
 
 menu() {
     tput civis  # Pour masquer le curseur
-    # ssh_var=false;
-    # ZSHRC_VAR=false;
-    # OMZSH_VAR=false;
-    # CLEANER_VAR=false;
-    # POS_VAR=1;
     clear
     banner
     echo -e "For navigation in menu, use arrow $UP_ARROW and $DOWN_ARROW"
@@ -204,12 +258,30 @@ menu() {
     echo -e ""
     echo -e ""
     echo -e ""
+    # select_mode
     select_option
     echo "debug 3"
 }
 
 start_save() {
+    echo -e "############################################################"
+    echo -e "Activity logs"
+    echo -e "############################################################"
     echo "Sauvegarde en cours..."
+    if [ "$SSH_VAR" == true ]; then
+        
+        echo "Sauvegarde du .ssh"
+    fi
+    if [ "$ZSHRC_VAR" == true ]; then
+        echo "Sauvegarde du .zshrc"
+    fi
+    if [ "$OMZSH_VAR" == true ]; then
+        echo "Sauvegarde de ohMyZsh"
+    fi
+    if [ "$CLEANER_VAR" == true ]; then
+        echo "Sauvegarde de cclean"
+    fi
+    echo -e "############################################################"
     # Ajoutez ici votre code de sauvegarde
     sleep 2  # Exemple: Attente de 2 secondes pour simuler la sauvegarde
     echo "Sauvegarde terminée."
